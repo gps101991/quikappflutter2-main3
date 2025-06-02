@@ -2272,10 +2272,22 @@ workflows:
 #          done
 #
 #          flutter build ios --release --no-codesign $DART_DEFINE_ARGS
+      - name: 🔧 Inject Pods xcconfig into Release.xcconfig
+        script: |
+          XC_CONFIG_PATH="ios/Flutter/Release.xcconfig"
+          PODS_INCLUDE_LINE='#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"'
+          if grep -Fxq "$PODS_INCLUDE_LINE" "$XC_CONFIG_PATH"; then
+            echo "✅ Already included"
+          else
+            echo -e "\n$PODS_INCLUDE_LINE" >> "$XC_CONFIG_PATH"
+            echo "✅ Appended $PODS_INCLUDE_LINE"
+          fi
       - name: 🧩 Flutter Build IOS
         script: |
           set -euo pipefail
           trap 'echo "❌ Flutter build failed on line $LINENO"; exit 1' ERR
+          flutter clean
+          rm -rf ios/Pods ios/Podfile.lock
           cd ios && pod install && cd ..
           flutter build ios --release --no-codesign \
             --dart-define=WEB_URL="$WEB_URL" \
