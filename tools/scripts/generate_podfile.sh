@@ -3,8 +3,7 @@
 set -euo pipefail
 trap 'echo "❌ Failed to generate Podfile at line $LINENO"; exit 1' ERR
 
-echo "📥 Parsing environment from $CM_ENV"
-
+echo "📥 Parsing environment from \$CM_ENV"
 while IFS='=' read -r key value; do
   key=$(echo "$key" | xargs)
   value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' | xargs)
@@ -15,6 +14,8 @@ done < "$CM_ENV"
 
 echo "✅ PROFILE_UUID=$PROFILE_UUID"
 echo "✅ PROFILE_NAME=$PROFILE_NAME"
+echo "✅ APPLE_TEAM_ID=$APPLE_TEAM_ID"
+echo "✅ BUNDLE_ID=$BUNDLE_ID"
 
 cat > ios/Podfile <<EOF
 platform :ios, '13.0'
@@ -58,14 +59,14 @@ target 'Runner' do
 end
 
 post_install do |installer|
-  puts "✅ Injecting manual signing ONLY for Runner target"
-  installer.pods_project.targets.each do |target|
-    if target.name == 'Runner'
-      target.build_configurations.each do |config|
-        config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
-        config.build_settings['DEVELOPMENT_TEAM'] = '\${APPLE_TEAM_ID}'
-        config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '\${PROFILE_NAME}'
-      end
+  puts "✅ Setting manual signing ONLY for Runner target"
+
+  runner_target = installer.pods_project.targets.find { |t| t.name == 'Runner' }
+  if runner_target
+    runner_target.build_configurations.each do |config|
+      config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+      config.build_settings['DEVELOPMENT_TEAM'] = '\${APPLE_TEAM_ID}'
+      config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '\${PROFILE_NAME}'
     end
   end
 
@@ -75,10 +76,16 @@ post_install do |installer|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
       config.build_settings['ENABLE_BITCODE'] = 'NO'
       config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+
+      # 🔥 Remove signing settings from all non-Runner targets
+      unless target.name == 'Runner'
+        config.build_settings.delete('PROVISIONING_PROFILE_SPECIFIER')
+        config.build_settings.delete('CODE_SIGN_STYLE')
+        config.build_settings.delete('DEVELOPMENT_TEAM')
+      end
     end
   end
 end
 EOF
-
 
 echo "✅ Podfile generated successfully"
