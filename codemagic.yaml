@@ -685,66 +685,71 @@ definitions:
       name: Get JSON file & Prepare Firebase configuration
       script: |
 
-        if [ "$PUSH_NOTIFY" = "true" ]; then
-        echo "📥 Downloading google-services.json..."
+          if [ "$PUSH_NOTIFY" = "true" ]; then
+            echo "📥 Downloading google-services.json..."
       
-        # Ensure target directories exist
-        mkdir -p android/app
-        
+            # Ensure target directories exist
+            mkdir -p android/app
+            mkdir -p assets
       
-        # Function to download with retry and SSL check
-        download_with_retry() {
-        local url=$firebase_config_android
-        local output=android/app/google-services.json
-        local max_retries=3
-        local retry_delay=5
-        local attempt=1
-        local WGET_OPTS=""
-        echo "url=$firebase_config_android"
-        echo "output=android/app/google-services.json"
-        echo "max_retries=3"
-        echo "attempt=1"
-        while [ $attempt -le $max_retries ]; do
-        echo "➡️ Attempt $attempt to download $url"
-        wget --spider --quiet "$url"
-        if [ $? -ne 0 ]; then
-        echo "⚠️ SSL verification failed. Using --no-check-certificate"
-        WGET_OPTS="--no-check-certificate"
-        else
-        WGET_OPTS=""
-        fi
-        
-        wget $WGET_OPTS -O "$output" "$url"
-        if [ $? -eq 0 ]; then
-        echo "✅ Successfully downloaded $output"
-        return 0
-        else
-        echo "❌ Download failed on attempt $attempt"
-        fi
-        
-        attempt=$((attempt + 1))
-        if [ $attempt -le $max_retries ]; then
-        echo "⏳ Waiting $retry_delay seconds before retry..."
-        sleep $retry_delay
-        fi
-        done
-        
-        echo "🚨 Failed to download $url after $max_retries attempts."
-        return 1
-        }
+            # Function to download with retry and SSL check
+            download_with_retry() {
+            local url=$firebase_config_android
+            local output=android/app/google-services.json
+            local max_retries=3
+            local retry_delay=5
+            local attempt=1
+            local WGET_OPTS=""
+            
+            echo "url=$firebase_config_android"
+            echo "output=android/app/google-services.json"
+            echo "max_retries=3"
+            echo "attempt=1"
+            
+            while [ $attempt -le $max_retries ]; do
+            echo "➡️ Attempt $attempt to download $url"
+            wget --spider --quiet "$url"
+            if [ $? -ne 0 ]; then
+            echo "⚠️ SSL verification failed. Using --no-check-certificate"
+            WGET_OPTS="--no-check-certificate"
+            else
+            WGET_OPTS=""
+            fi
+            
+            wget $WGET_OPTS -O "$output" "$url"
+            if [ $? -eq 0 ]; then
+            echo "✅ Successfully downloaded $output"
+            return 0
+            else
+            echo "❌ Download failed on attempt $attempt"
+            fi
+            
+            attempt=$((attempt + 1))
+            if [ $attempt -le $max_retries ]; then
+            echo "⏳ Waiting $retry_delay seconds before retry..."
+            sleep $retry_delay
+            fi
+            done
+            
+            echo "🚨 Failed to download $url after $max_retries attempts."
+            return 1
+          }
       
-        # Download files with retry
-        download_with_retry "$firebase_config_android" "android/app/google-services.json"
-
-         if [ -f android/app/google-services.json ]; then
-            echo "✅ File found"
-          else
+            # Download files with retry
+            download_with_retry "$firebase_config_android" "android/app/google-services.json"
+      
+            # Verify file and copy to assets/
+            if [ -f android/app/google-services.json ]; then
+            echo "✅ google-services.json found"
+            cp android/app/google-services.json assets/google-services.json
+            echo "📂 Copied google-services.json to assets/"
+            else
             echo "❌ Missing google-services.json"
             exit 1
+            fi
+          else
+          echo "🚫 Firebase config skipped (PUSH_NOTIFY is not true)"
           fi
-        else
-        echo "🚫 Firebase config skipped (PUSH_NOTIFY is not true)"
-        fi
 
 
 #        if [ "$PUSH_NOTIFY" = "true" ]; then
