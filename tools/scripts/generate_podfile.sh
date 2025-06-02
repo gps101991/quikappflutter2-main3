@@ -46,19 +46,6 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
-pre_install do |installer|
-  puts "🔧 Injecting manual signing ONLY for Runner target"
-  installer.pods_project.targets.each do |target|
-    next unless target.name == 'Runner'
-
-    target.build_configurations.each do |config|
-      config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
-      config.build_settings['DEVELOPMENT_TEAM'] = '${APPLE_TEAM_ID}'
-      config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '${PROFILE_NAME}'
-    end
-  end
-end
-
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
@@ -71,6 +58,17 @@ target 'Runner' do
 end
 
 post_install do |installer|
+  puts "✅ Injecting manual signing ONLY for Runner target"
+  installer.pods_project.targets.each do |target|
+    if target.name == 'Runner'
+      target.build_configurations.each do |config|
+        config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+        config.build_settings['DEVELOPMENT_TEAM'] = '\${APPLE_TEAM_ID}'
+        config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '\${PROFILE_NAME}'
+      end
+    end
+  end
+
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
@@ -81,5 +79,6 @@ post_install do |installer|
   end
 end
 EOF
+
 
 echo "✅ Podfile generated successfully"
