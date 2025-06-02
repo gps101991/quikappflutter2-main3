@@ -32,7 +32,7 @@ project 'Runner', {
 def flutter_root
   generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
   unless File.exist?(generated_xcode_build_settings_path)
-    raise "\#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
   end
 
   File.foreach(generated_xcode_build_settings_path) do |line|
@@ -40,7 +40,7 @@ def flutter_root
     return matches[1].strip if matches
   end
 
-  raise "FLUTTER_ROOT not found in \#{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
 end
 
 require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
@@ -59,29 +59,26 @@ target 'Runner' do
 end
 
 post_install do |installer|
-  puts "✅ Setting manual signing ONLY for Runner target"
-
-  runner_target = installer.pods_project.targets.find { |t| t.name == 'Runner' }
-  if runner_target
-    runner_target.build_configurations.each do |config|
-      config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
-      config.build_settings['DEVELOPMENT_TEAM'] = '\${APPLE_TEAM_ID}'
-      config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '\${PROFILE_NAME}'
-    end
-  end
+  puts "✅ Fixing code signing for only Runner"
 
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
       config.build_settings['ENABLE_BITCODE'] = 'NO'
       config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
 
-      # 🔥 Remove signing settings from all non-Runner targets
-      unless target.name == 'Runner'
-        config.build_settings.delete('PROVISIONING_PROFILE_SPECIFIER')
+      if target.name == 'Runner'
+        # ✅ Apply manual signing ONLY to the app target
+        config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+        config.build_settings['DEVELOPMENT_TEAM'] = '${APPLE_TEAM_ID}'
+        config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '${PROFILE_NAME}'
+      else
+        # ✅ Ensure NO signing for Pods
         config.build_settings.delete('CODE_SIGN_STYLE')
         config.build_settings.delete('DEVELOPMENT_TEAM')
+        config.build_settings.delete('PROVISIONING_PROFILE_SPECIFIER')
       end
     end
   end
