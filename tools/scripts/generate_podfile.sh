@@ -18,7 +18,7 @@ echo "✅ APPLE_TEAM_ID=$APPLE_TEAM_ID"
 echo "✅ BUNDLE_ID=$BUNDLE_ID"
 
 #!/bin/bash
-echo "📥 Injecting Podfile for flutter build ios"
+echo "📥 Injecting basic Podfile for flutter build ios"
 
 cat > ios/Podfile <<EOF
 platform :ios, '13.0'
@@ -53,9 +53,10 @@ flutter_ios_podfile_setup
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
-  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  flutter_install_all_ios_pods(File.dirname(File.realpath(__FILE__)))
 end
 EOF
+
 
 
 echo "✅ Podfile generated successfully"

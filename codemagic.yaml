@@ -2276,7 +2276,7 @@ workflows:
         script: |
           set -euo pipefail
           trap 'echo "❌ Flutter build failed on line $LINENO"; exit 1' ERR
-          
+          cd ios && pod install && cd ..
           flutter build ios --release --no-codesign \
             --dart-define=WEB_URL="$WEB_URL" \
             --dart-define=PUSH_NOTIFY="$PUSH_NOTIFY" \
