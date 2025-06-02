@@ -2321,6 +2321,9 @@ workflows:
             --dart-define=APNS_KEY_ID="$APNS_KEY_ID" \
             --dart-define=APPLE_TEAM_ID="$APPLE_TEAM_ID" \
             --dart-define=APNS_AUTH_KEY_URL="$APNS_AUTH_KEY_URL"
+      - name: 📝 Inject dynamic Podfile for xcodebuild
+        script: |
+          ./tools/scripts/generate_podfile_xcodebuild.sh
 
       - name: 🏗 Archive iOS App with Xcode
         script: |
