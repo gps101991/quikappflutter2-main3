@@ -2029,19 +2029,19 @@ workflows:
           rm -rf Pods Podfile.lock
           pod deintegrate
           pod cache clean --all
-          
+
           # Workaround for activesupport bug in CocoaPods + Ruby 3.x
           gem uninstall activesupport -a -x || true
           gem install activesupport -v 6.1.7.3
-          
+
           pod install --repo-update
           cd ..
-          
+
           echo "🔧 Updating Xcode manual signing configuration..."
           cd ios
           ruby <<'RUBY'
           require 'xcodeproj'
-          
+
           project = Xcodeproj::Project.open('Runner.xcodeproj')
           project.targets.each do |target|
             if target.name == 'Runner'
@@ -2059,11 +2059,11 @@ workflows:
               end
             end
           end
-          
+
           project.save
           RUBY
           cd ..
-          
+
           echo "🧾 Ensuring entitlements file exists..."
           mkdir -p ios/Runner
           cat > ios/Runner/Runner.entitlements <<EOF_ENTITLEMENTS
@@ -2071,89 +2071,222 @@ workflows:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-          <key>application-identifier</key>
-          <string>${APPLE_TEAM_ID}.${BUNDLE_ID}</string>
-          <key>keychain-access-groups</key>
-          <array>
-            <string>${APPLE_TEAM_ID}.*</string>
-          </array>
-          <key>get-task-allow</key>
-          <false/>
+            <key>application-identifier</key>
+            <string>${APPLE_TEAM_ID}.${BUNDLE_ID}</string>
+            <key>keychain-access-groups</key>
+            <array>
+              <string>${APPLE_TEAM_ID}.*</string>
+            </array>
+            <key>get-task-allow</key>
+            <false/>
           </dict>
           </plist>
           EOF_ENTITLEMENTS
 
       - name: 📝 Inject dynamic Podfile
         script: |
-          echo "📥 Loading environment from $CM_ENV"
-          set -a
-          source "$CM_ENV"
-          set +a
-                echo "✅ PROFILE_UUID=$PROFILE_UUID"
-                echo "✅ PROFILE_NAME=$PROFILE_NAME"
-                #echo "✅ CODE_SIGN_IDENTITY=$CODE_SIGN_IDENTITY"
-          cat > ios/Podfile <<EOF
-            platform :ios, '13.0'
-            use_frameworks! :linkage => :static
-            
-            ENV['COCOAPODS_DISABLE_STATS'] = 'true'
-            
-            project 'Runner', {
-              'Debug' => :debug,
-              'Profile' => :release,
-              'Release' => :release,
-            }
-            
-            def flutter_root
-              generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
-              unless File.exist?(generated_xcode_build_settings_path)
-                raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
-              end
-            
-              File.foreach(generated_xcode_build_settings_path) do |line|
-                matches = line.match(/FLUTTER_ROOT\\=(.*)/)
-                return matches[1].strip if matches
-              end
-              raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+              echo "📥 Loading environment from $CM_ENV"
+              set -a
+              source "$CM_ENV"
+              set +a
+              echo "✅ PROFILE_UUID=$PROFILE_UUID"
+              echo "✅ PROFILE_NAME=$PROFILE_NAME"
+              cat > ios/Podfile <<EOF
+          platform :ios, '13.0'
+          use_frameworks! :linkage => :static
+    
+          ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+    
+          project 'Runner', {
+            'Debug' => :debug,
+            'Profile' => :release,
+            'Release' => :release,
+          }
+        
+          def flutter_root
+            generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+            unless File.exist?(generated_xcode_build_settings_path)
+              raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
             end
             
-            require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
-            
-            flutter_ios_podfile_setup
-            
-            pre_install do |installer|
-              puts "🔧 Injecting manual signing"
-              installer.pod_targets.each do |pod|
-                pod.native_target.build_configurations.each do |config|
-                  config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
-                  config.build_settings['DEVELOPMENT_TEAM'] = '${APPLE_TEAM_ID}'
-                  config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '${PROFILE_NAME}'
-                end
+            File.foreach(generated_xcode_build_settings_path) do |line|
+            matches = line.match(/FLUTTER_ROOT\\=(.*)/)
+              return matches[1].strip if matches
+            end
+            raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+          end
+          
+          require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+          
+          flutter_ios_podfile_setup
+          
+          pre_install do |installer|
+            puts "🔧 Injecting manual signing"
+            installer.pod_targets.each do |pod|
+              pod.native_target.build_configurations.each do |config|
+                config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+                config.build_settings['DEVELOPMENT_TEAM'] = '${APPLE_TEAM_ID}'
+                config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '${PROFILE_NAME}'
               end
             end
+          end
+          
+          target 'Runner' do
+            use_frameworks!
+            use_modular_headers!
             
-            target 'Runner' do
-              use_frameworks!
-              use_modular_headers!
+            flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
             
-              flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-            
-              target 'RunnerTests' do
-                inherit! :search_paths
+            target 'RunnerTests' do
+              inherit! :search_paths
+            end
+          end
+          
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              flutter_additional_ios_build_settings(target)
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+                config.build_settings['ENABLE_BITCODE'] = 'NO'
+                config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
               end
             end
-            
-            post_install do |installer|
-              installer.pods_project.targets.each do |target|
-                flutter_additional_ios_build_settings(target)
-                target.build_configurations.each do |config|
-                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-                  config.build_settings['ENABLE_BITCODE'] = 'NO'
-                  config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
-                end
-              end
-            end
-            EOF
+          end
+          EOF
+
+    #      - name: 🔄 Clean and reinstall CocoaPods + Manual Code Signing setup
+#        script: |
+#          echo "📦 Cleaning and reinstalling CocoaPods..."
+#          rm -rf ~/Library/Developer/Xcode/DerivedData
+#          cd ios
+#          rm -rf Pods Podfile.lock
+#          pod deintegrate
+#          pod cache clean --all
+#
+#          # Workaround for activesupport bug in CocoaPods + Ruby 3.x
+#          gem uninstall activesupport -a -x || true
+#          gem install activesupport -v 6.1.7.3
+#
+#          pod install --repo-update
+#          cd ..
+#
+#          echo "🔧 Updating Xcode manual signing configuration..."
+#          cd ios
+#          ruby <<'RUBY'
+#          require 'xcodeproj'
+#
+#          project = Xcodeproj::Project.open('Runner.xcodeproj')
+#          project.targets.each do |target|
+#            if target.name == 'Runner'
+#              target.build_configurations.each do |config|
+#                config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+#                config.build_settings['DEVELOPMENT_TEAM'] = ENV['APPLE_TEAM_ID']
+#                config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = ENV['PROFILE_NAME']
+#                config.build_settings['CODE_SIGN_IDENTITY'] = ENV['CODE_SIGN_IDENTITY']
+#                config.build_settings['CODE_SIGNING_REQUIRED'] = 'YES'
+#                config.build_settings['CODE_SIGNING_ALLOWED'] = 'YES'
+#                config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ENV['CODE_SIGN_IDENTITY']
+#                config.build_settings['CODE_SIGN_INJECT_BASE_ENTITLEMENTS'] = 'YES'
+#                config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
+#                config.build_settings['OTHER_CODE_SIGN_FLAGS'] = "--keychain $HOME/Library/Keychains/$KEYCHAIN_NAME-db"
+#              end
+#            end
+#          end
+#
+#          project.save
+#          RUBY
+#          cd ..
+#
+#          echo "🧾 Ensuring entitlements file exists..."
+#          mkdir -p ios/Runner
+#          cat > ios/Runner/Runner.entitlements <<EOF_ENTITLEMENTS
+#          <?xml version="1.0" encoding="UTF-8"?>
+#          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+#          <plist version="1.0">
+#          <dict>
+#          <key>application-identifier</key>
+#          <string>${APPLE_TEAM_ID}.${BUNDLE_ID}</string>
+#          <key>keychain-access-groups</key>
+#          <array>
+#            <string>${APPLE_TEAM_ID}.*</string>
+#          </array>
+#          <key>get-task-allow</key>
+#          <false/>
+#          </dict>
+#          </plist>
+#          EOF_ENTITLEMENTS
+#
+#      - name: 📝 Inject dynamic Podfile
+#        script: |
+#          echo "📥 Loading environment from $CM_ENV"
+#          set -a
+#          source "$CM_ENV"
+#          set +a
+#                echo "✅ PROFILE_UUID=$PROFILE_UUID"
+#                echo "✅ PROFILE_NAME=$PROFILE_NAME"
+#                #echo "✅ CODE_SIGN_IDENTITY=$CODE_SIGN_IDENTITY"
+#          cat > ios/Podfile <<EOF
+#            platform :ios, '13.0'
+#            use_frameworks! :linkage => :static
+#
+#            ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+#
+#            project 'Runner', {
+#              'Debug' => :debug,
+#              'Profile' => :release,
+#              'Release' => :release,
+#            }
+#
+#            def flutter_root
+#              generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+#              unless File.exist?(generated_xcode_build_settings_path)
+#                raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+#              end
+#
+#              File.foreach(generated_xcode_build_settings_path) do |line|
+#                matches = line.match(/FLUTTER_ROOT\\=(.*)/)
+#                return matches[1].strip if matches
+#              end
+#              raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+#            end
+#
+#            require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+#
+#            flutter_ios_podfile_setup
+#
+#            pre_install do |installer|
+#              puts "🔧 Injecting manual signing"
+#              installer.pod_targets.each do |pod|
+#                pod.native_target.build_configurations.each do |config|
+#                  config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+#                  config.build_settings['DEVELOPMENT_TEAM'] = '${APPLE_TEAM_ID}'
+#                  config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '${PROFILE_NAME}'
+#                end
+#              end
+#            end
+#
+#            target 'Runner' do
+#              use_frameworks!
+#              use_modular_headers!
+#
+#              flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+#
+#              target 'RunnerTests' do
+#                inherit! :search_paths
+#              end
+#            end
+#
+#            post_install do |installer|
+#              installer.pods_project.targets.each do |target|
+#                flutter_additional_ios_build_settings(target)
+#                target.build_configurations.each do |config|
+#                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+#                  config.build_settings['ENABLE_BITCODE'] = 'NO'
+#                  config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+#                end
+#              end
+#            end
+#          EOF
 
       - name: 📦 Install CocoaPods
         script: |
