@@ -997,8 +997,7 @@ definitions:
         fi
 
         echo "✅ Building APK..."
-        flutter build apk \
-            --release \
+        flutter build apk --release \
             --dart-define=WEB_URL="$WEB_URL" \
             --dart-define=PUSH_NOTIFY="$PUSH_NOTIFY" \
             --dart-define=PKG_NAME="$PKG_NAME" \
@@ -2085,208 +2084,80 @@ workflows:
 
       - name: 📝 Inject dynamic Podfile
         script: |
-              echo "📥 Loading environment from $CM_ENV"
-              set -a
-              source "$CM_ENV"
-              set +a
-              echo "✅ PROFILE_UUID=$PROFILE_UUID"
-              echo "✅ PROFILE_NAME=$PROFILE_NAME"
-              cat > ios/Podfile <<EOF
+          echo "📥 Loading environment from $CM_ENV"
+          set -a
+          source "$CM_ENV"
+          set +a
+          echo "✅ PROFILE_UUID=$PROFILE_UUID"
+          echo "✅ PROFILE_NAME=$PROFILE_NAME"
+          
+          cat > ios/Podfile <<EOF
               platform :ios, '13.0'
               use_frameworks! :linkage => :static
-        
+              
               ENV['COCOAPODS_DISABLE_STATS'] = 'true'
-        
+              
               project 'Runner', {
                 'Debug' => :debug,
                 'Profile' => :release,
                 'Release' => :release,
               }
             
-              def flutter_root
-                generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
-                unless File.exist?(generated_xcode_build_settings_path)
-                  raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
-                end
-                
-                File.foreach(generated_xcode_build_settings_path) do |line|
-                matches = line.match(/FLUTTER_ROOT\\=(.*)/)
-                  return matches[1].strip if matches
-                end
-                raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+            def flutter_root
+              generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+              unless File.exist?(generated_xcode_build_settings_path)
+                raise "\#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
               end
-              
-              require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
-              
-              flutter_ios_podfile_setup
-              
-              pre_install do |installer|
-                puts "🔧 Injecting manual signing"
-                installer.pod_targets.each do |pod|
-                  pod.native_target.build_configurations.each do |config|
-                    config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
-                    config.build_settings['DEVELOPMENT_TEAM'] = '${APPLE_TEAM_ID}'
-                    config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '${PROFILE_NAME}'
+                
+              File.foreach(generated_xcode_build_settings_path) do |line|
+                matches = line.match(/FLUTTER_ROOT=(.*)/)
+                return matches[1].strip if matches
+              end
+            
+              raise "FLUTTER_ROOT not found in \#{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+            end
+            
+            require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+            
+            flutter_ios_podfile_setup
+            
+            pre_install do |installer|
+              puts "🔧 Injecting manual signing"
+                installer.aggregate_targets.each do |aggregate_target|
+                  aggregate_target.user_project.native_targets.each do |native_target|
+                    if native_target.name == 'Runner'
+                      native_target.build_configurations.each do |config|
+                      config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+                      config.build_settings['DEVELOPMENT_TEAM'] = '\${APPLE_TEAM_ID}'
+                      config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '\${PROFILE_NAME}'
+                    end
                   end
                 end
               end
+            end
+            
+            target 'Runner' do
+              use_frameworks!
+              use_modular_headers!
               
-              target 'Runner' do
-                use_frameworks!
-                use_modular_headers!
-                
-                flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-                
-                target 'RunnerTests' do
-                  inherit! :search_paths
+              flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+              
+              target 'RunnerTests' do
+                inherit! :search_paths
+              end
+            end
+            
+            post_install do |installer|
+              installer.pods_project.targets.each do |target|
+                flutter_additional_ios_build_settings(target)
+                target.build_configurations.each do |config|
+                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+                  config.build_settings['ENABLE_BITCODE'] = 'NO'
+                  config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
                 end
               end
-              
-              post_install do |installer|
-                installer.pods_project.targets.each do |target|
-                  flutter_additional_ios_build_settings(target)
-                  target.build_configurations.each do |config|
-                    config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-                    config.build_settings['ENABLE_BITCODE'] = 'NO'
-                    config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
-                  end
-                end
-              end
-              EOF
-
-    #      - name: 🔄 Clean and reinstall CocoaPods + Manual Code Signing setup
-#        script: |
-#          echo "📦 Cleaning and reinstalling CocoaPods..."
-#          rm -rf ~/Library/Developer/Xcode/DerivedData
-#          cd ios
-#          rm -rf Pods Podfile.lock
-#          pod deintegrate
-#          pod cache clean --all
-#
-#          # Workaround for activesupport bug in CocoaPods + Ruby 3.x
-#          gem uninstall activesupport -a -x || true
-#          gem install activesupport -v 6.1.7.3
-#
-#          pod install --repo-update
-#          cd ..
-#
-#          echo "🔧 Updating Xcode manual signing configuration..."
-#          cd ios
-#          ruby <<'RUBY'
-#          require 'xcodeproj'
-#
-#          project = Xcodeproj::Project.open('Runner.xcodeproj')
-#          project.targets.each do |target|
-#            if target.name == 'Runner'
-#              target.build_configurations.each do |config|
-#                config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
-#                config.build_settings['DEVELOPMENT_TEAM'] = ENV['APPLE_TEAM_ID']
-#                config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = ENV['PROFILE_NAME']
-#                config.build_settings['CODE_SIGN_IDENTITY'] = ENV['CODE_SIGN_IDENTITY']
-#                config.build_settings['CODE_SIGNING_REQUIRED'] = 'YES'
-#                config.build_settings['CODE_SIGNING_ALLOWED'] = 'YES'
-#                config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ENV['CODE_SIGN_IDENTITY']
-#                config.build_settings['CODE_SIGN_INJECT_BASE_ENTITLEMENTS'] = 'YES'
-#                config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
-#                config.build_settings['OTHER_CODE_SIGN_FLAGS'] = "--keychain $HOME/Library/Keychains/$KEYCHAIN_NAME-db"
-#              end
-#            end
-#          end
-#
-#          project.save
-#          RUBY
-#          cd ..
-#
-#          echo "🧾 Ensuring entitlements file exists..."
-#          mkdir -p ios/Runner
-#          cat > ios/Runner/Runner.entitlements <<EOF_ENTITLEMENTS
-#          <?xml version="1.0" encoding="UTF-8"?>
-#          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-#          <plist version="1.0">
-#          <dict>
-#          <key>application-identifier</key>
-#          <string>${APPLE_TEAM_ID}.${BUNDLE_ID}</string>
-#          <key>keychain-access-groups</key>
-#          <array>
-#            <string>${APPLE_TEAM_ID}.*</string>
-#          </array>
-#          <key>get-task-allow</key>
-#          <false/>
-#          </dict>
-#          </plist>
-#          EOF_ENTITLEMENTS
-#
-#      - name: 📝 Inject dynamic Podfile
-#        script: |
-#          echo "📥 Loading environment from $CM_ENV"
-#          set -a
-#          source "$CM_ENV"
-#          set +a
-#                echo "✅ PROFILE_UUID=$PROFILE_UUID"
-#                echo "✅ PROFILE_NAME=$PROFILE_NAME"
-#                #echo "✅ CODE_SIGN_IDENTITY=$CODE_SIGN_IDENTITY"
-#          cat > ios/Podfile <<EOF
-#            platform :ios, '13.0'
-#            use_frameworks! :linkage => :static
-#
-#            ENV['COCOAPODS_DISABLE_STATS'] = 'true'
-#
-#            project 'Runner', {
-#              'Debug' => :debug,
-#              'Profile' => :release,
-#              'Release' => :release,
-#            }
-#
-#            def flutter_root
-#              generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
-#              unless File.exist?(generated_xcode_build_settings_path)
-#                raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
-#              end
-#
-#              File.foreach(generated_xcode_build_settings_path) do |line|
-#                matches = line.match(/FLUTTER_ROOT\\=(.*)/)
-#                return matches[1].strip if matches
-#              end
-#              raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
-#            end
-#
-#            require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
-#
-#            flutter_ios_podfile_setup
-#
-#            pre_install do |installer|
-#              puts "🔧 Injecting manual signing"
-#              installer.pod_targets.each do |pod|
-#                pod.native_target.build_configurations.each do |config|
-#                  config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
-#                  config.build_settings['DEVELOPMENT_TEAM'] = '${APPLE_TEAM_ID}'
-#                  config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '${PROFILE_NAME}'
-#                end
-#              end
-#            end
-#
-#            target 'Runner' do
-#              use_frameworks!
-#              use_modular_headers!
-#
-#              flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-#
-#              target 'RunnerTests' do
-#                inherit! :search_paths
-#              end
-#            end
-#
-#            post_install do |installer|
-#              installer.pods_project.targets.each do |target|
-#                flutter_additional_ios_build_settings(target)
-#                target.build_configurations.each do |config|
-#                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-#                  config.build_settings['ENABLE_BITCODE'] = 'NO'
-#                  config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
-#                end
-#              end
-#            end
-#          EOF
+            end
+            EOF
 
       - name: 📦 Install CocoaPods
         script: |
@@ -2322,84 +2193,135 @@ workflows:
             </dict>
             </plist>
             EOF
-      - name: 🚀 Inject API config via Dart defines
+#      - name: 🚀 Inject API config via Dart defines
+#        script: |
+#          echo "🚀 Inject API config via Dart defines"
+#          echo "export DART_DEFINES=\"$(cat <<EOF
+#          VERSION_NAME=$VERSION_NAME,
+#          VERSION_CODE=$VERSION_CODE,
+#          APP_NAME=$APP_NAME,
+#          ORG_NAME=$ORG_NAME,
+#          WEB_URL=$WEB_URL,
+#          PKG_NAME=$PKG_NAME,
+#          BUNDLE_ID=$BUNDLE_ID,
+#          EMAIL_ID=$EMAIL_ID,
+#          PUSH_NOTIFY=$PUSH_NOTIFY,
+#          IS_CHATBOT=$IS_CHATBOT,
+#          IS_DEEPLINK=$IS_DEEPLINK,
+#          IS_SPLASH=$IS_SPLASH,
+#          IS_PULLDOWN=$IS_PULLDOWN,
+#          IS_BOTTOMMENU=$IS_BOTTOMMENU,
+#          IS_LOAD_IND=$IS_LOAD_IND,
+#          IS_CAMERA=$IS_CAMERA,
+#          IS_LOCATION=$IS_LOCATION,
+#          IS_MIC=$IS_MIC,
+#          IS_NOTIFICATION=$IS_NOTIFICATION,
+#          IS_CONTACT=$IS_CONTACT,
+#          IS_BIOMETRIC=$IS_BIOMETRIC,
+#          IS_CALENDAR=$IS_CALENDAR,
+#          IS_STORAGE=$IS_STORAGE,
+#          LOGO_URL=$LOGO_URL,
+#          SPLASH=$SPLASH,
+#          SPLASH_BG=$SPLASH_BG,
+#          SPLASH_BG_COLOR=$SPLASH_BG_COLOR,
+#          SPLASH_TAGLINE=$SPLASH_TAGLINE,
+#          SPLASH_TAGLINE_COLOR=$SPLASH_TAGLINE_COLOR,
+#          SPLASH_ANIMATION=$SPLASH_ANIMATION,
+#          SPLASH_DURATION=$SPLASH_DURATION,
+#          firebase_config_android=$firebase_config_android,
+#          firebase_config_ios=$firebase_config_ios,
+#          APPLE_TEAM_ID=$APPLE_TEAM_ID,
+#          APNS_KEY_ID=$APNS_KEY_ID,
+#          APNS_AUTH_KEY_URL=$APNS_AUTH_KEY_URL,
+#          BOTTOMMENU_ITEMS=$BOTTOMMENU_ITEMS,
+#          BOTTOMMENU_BG_COLOR=$BOTTOMMENU_BG_COLOR,
+#          BOTTOMMENU_ICON_COLOR=$BOTTOMMENU_ICON_COLOR,
+#          BOTTOMMENU_TEXT_COLOR=$BOTTOMMENU_TEXT_COLOR,
+#          BOTTOMMENU_ACTIVE_TAB_COLOR=$BOTTOMMENU_ACTIVE_TAB_COLOR,
+#          BOTTOMMENU_ICON_POSITION=$BOTTOMMENU_ICON_POSITION,
+#          BOTTOMMENU_VISIBLE_ON=$BOTTOMMENU_VISIBLE_ON,
+#          CERT_PASSWORD=$CERT_PASSWORD,
+#          PROFILE_URL=$PROFILE_URL,
+#          CERT_CER_URL=$CERT_CER_URL,
+#          CERT_KEY_URL=$CERT_KEY_URL,
+#          APP_STORE_CONNECT_KEY_IDENTIFIER=$APP_STORE_CONNECT_KEY_IDENTIFIER,
+#          KEY_STORE=$KEY_STORE,
+#          CM_KEYSTORE_PASSWORD=$CM_KEYSTORE_PASSWORD,
+#          CM_KEY_ALIAS=$CM_KEY_ALIAS,
+#          CM_KEY_PASSWORD=$CM_KEY_PASSWORD
+#          EOF
+#          | base64 | tr -d '\n')\"" >> $CM_ENV
+#
+#      - name: 🧩 Decode and Build with Dart Defines
+#        script: |
+#          echo "🧩 Decode and Build with Dart Defines"
+#          # Load exported env vars
+#          source $CM_ENV
+#
+#          # Decode the base64-encoded Dart defines
+#          DEFINES=$(echo "$DART_DEFINES" | base64 --decode)
+#
+#          # Convert comma-separated pairs into --dart-define flags
+#          DART_DEFINE_ARGS=""
+#          for pair in $(echo "$DEFINES" | tr ',' '\n'); do
+#            DART_DEFINE_ARGS+="--dart-define=$pair "
+#          done
+#
+#          flutter build ios --release --no-codesign $DART_DEFINE_ARGS
+      - name: 🧩 Flutter Build IOS
         script: |
-          echo "🚀 Inject API config via Dart defines"
-          echo "export DART_DEFINES=\"$(cat <<EOF
-          VERSION_NAME=$VERSION_NAME,
-          VERSION_CODE=$VERSION_CODE,
-          APP_NAME=$APP_NAME,
-          ORG_NAME=$ORG_NAME,
-          WEB_URL=$WEB_URL,
-          PKG_NAME=$PKG_NAME,
-          BUNDLE_ID=$BUNDLE_ID,
-          EMAIL_ID=$EMAIL_ID,
-          PUSH_NOTIFY=$PUSH_NOTIFY,
-          IS_CHATBOT=$IS_CHATBOT,
-          IS_DEEPLINK=$IS_DEEPLINK,
-          IS_SPLASH=$IS_SPLASH,
-          IS_PULLDOWN=$IS_PULLDOWN,
-          IS_BOTTOMMENU=$IS_BOTTOMMENU,
-          IS_LOAD_IND=$IS_LOAD_IND,
-          IS_CAMERA=$IS_CAMERA,
-          IS_LOCATION=$IS_LOCATION,
-          IS_MIC=$IS_MIC,
-          IS_NOTIFICATION=$IS_NOTIFICATION,
-          IS_CONTACT=$IS_CONTACT,
-          IS_BIOMETRIC=$IS_BIOMETRIC,
-          IS_CALENDAR=$IS_CALENDAR,
-          IS_STORAGE=$IS_STORAGE,
-          LOGO_URL=$LOGO_URL,
-          SPLASH=$SPLASH,
-          SPLASH_BG=$SPLASH_BG,
-          SPLASH_BG_COLOR=$SPLASH_BG_COLOR,
-          SPLASH_TAGLINE=$SPLASH_TAGLINE,
-          SPLASH_TAGLINE_COLOR=$SPLASH_TAGLINE_COLOR,
-          SPLASH_ANIMATION=$SPLASH_ANIMATION,
-          SPLASH_DURATION=$SPLASH_DURATION,
-          firebase_config_android=$firebase_config_android,
-          firebase_config_ios=$firebase_config_ios,
-          APPLE_TEAM_ID=$APPLE_TEAM_ID,
-          APNS_KEY_ID=$APNS_KEY_ID,
-          APNS_AUTH_KEY_URL=$APNS_AUTH_KEY_URL,
-          BOTTOMMENU_ITEMS=$BOTTOMMENU_ITEMS,
-          BOTTOMMENU_BG_COLOR=$BOTTOMMENU_BG_COLOR,
-          BOTTOMMENU_ICON_COLOR=$BOTTOMMENU_ICON_COLOR,
-          BOTTOMMENU_TEXT_COLOR=$BOTTOMMENU_TEXT_COLOR,
-          BOTTOMMENU_ACTIVE_TAB_COLOR=$BOTTOMMENU_ACTIVE_TAB_COLOR,
-          BOTTOMMENU_ICON_POSITION=$BOTTOMMENU_ICON_POSITION,
-          BOTTOMMENU_VISIBLE_ON=$BOTTOMMENU_VISIBLE_ON,
-          CERT_PASSWORD=$CERT_PASSWORD,
-          PROFILE_URL=$PROFILE_URL,
-          CERT_CER_URL=$CERT_CER_URL,
-          CERT_KEY_URL=$CERT_KEY_URL,
-          APP_STORE_CONNECT_KEY_IDENTIFIER=$APP_STORE_CONNECT_KEY_IDENTIFIER,
-          KEY_STORE=$KEY_STORE,
-          CM_KEYSTORE_PASSWORD=$CM_KEYSTORE_PASSWORD,
-          CM_KEY_ALIAS=$CM_KEY_ALIAS,
-          CM_KEY_PASSWORD=$CM_KEY_PASSWORD
-          EOF
-          | base64 | tr -d '\n')\"" >> $CM_ENV
-
-      - name: 🧩 Decode and Build with Dart Defines
-        script: |
-          echo "🧩 Decode and Build with Dart Defines"
-          # Load exported env vars
-          source $CM_ENV
-
-          # Decode the base64-encoded Dart defines
-          DEFINES=$(echo "$DART_DEFINES" | base64 --decode)
-
-          # Convert comma-separated pairs into --dart-define flags
-          DART_DEFINE_ARGS=""
-          for pair in $(echo "$DEFINES" | tr ',' '\n'); do
-            DART_DEFINE_ARGS+="--dart-define=$pair "
-          done
-
-          flutter build ios --release --no-codesign $DART_DEFINE_ARGS
+          set -euo pipefail
+          trap 'echo "❌ Flutter build failed on line $LINENO"; exit 1' ERR
+          
+          flutter build ios --release --no-codesign \
+            --dart-define=WEB_URL="$WEB_URL" \
+            --dart-define=PUSH_NOTIFY="$PUSH_NOTIFY" \
+            --dart-define=PKG_NAME="$PKG_NAME" \
+            --dart-define=APP_NAME="$APP_NAME" \
+            --dart-define=ORG_NAME="$ORG_NAME" \
+            --dart-define=VERSION_NAME="$VERSION_NAME" \
+            --dart-define=VERSION_CODE="$VERSION_CODE" \
+            --dart-define=EMAIL_ID="$EMAIL_ID" \
+            --dart-define=IS_SPLASH="$IS_SPLASH" \
+            --dart-define=SPLASH="$SPLASH" \
+            --dart-define=SPLASH_BG="$SPLASH_BG" \
+            --dart-define=SPLASH_ANIMATION="$SPLASH_ANIMATION" \
+            --dart-define=SPLASH_BG_COLOR="$SPLASH_BG_COLOR" \
+            --dart-define=SPLASH_TAGLINE="$SPLASH_TAGLINE" \
+            --dart-define=SPLASH_TAGLINE_COLOR="$SPLASH_TAGLINE_COLOR" \
+            --dart-define=SPLASH_DURATION="$SPLASH_DURATION" \
+            --dart-define=IS_PULLDOWN="$IS_PULLDOWN" \
+            --dart-define=LOGO_URL="$LOGO_URL" \
+            --dart-define=IS_BOTTOMMENU="$IS_BOTTOMMENU" \
+            --dart-define=BOTTOMMENU_ITEMS="$BOTTOMMENU_ITEMS" \
+            --dart-define=BOTTOMMENU_BG_COLOR="$BOTTOMMENU_BG_COLOR" \
+            --dart-define=BOTTOMMENU_ICON_COLOR="$BOTTOMMENU_ICON_COLOR" \
+            --dart-define=BOTTOMMENU_TEXT_COLOR="$BOTTOMMENU_TEXT_COLOR" \
+            --dart-define=BOTTOMMENU_FONT="$BOTTOMMENU_FONT" \
+            --dart-define=BOTTOMMENU_FONT_SIZE="$BOTTOMMENU_FONT_SIZE" \
+            --dart-define=BOTTOMMENU_FONT_BOLD="$BOTTOMMENU_FONT_BOLD" \
+            --dart-define=BOTTOMMENU_FONT_ITALIC="$BOTTOMMENU_FONT_ITALIC" \
+            --dart-define=BOTTOMMENU_ACTIVE_TAB_COLOR="$BOTTOMMENU_ACTIVE_TAB_COLOR" \
+            --dart-define=BOTTOMMENU_ICON_POSITION="$BOTTOMMENU_ICON_POSITION" \
+            --dart-define=BOTTOMMENU_VISIBLE_ON="$BOTTOMMENU_VISIBLE_ON" \
+            --dart-define=IS_DEEPLINK="$IS_DEEPLINK" \
+            --dart-define=IS_LOAD_IND="$IS_LOAD_IND" \
+            --dart-define=IS_CAMERA="$IS_CAMERA" \
+            --dart-define=IS_LOCATION="$IS_LOCATION" \
+            --dart-define=IS_BIOMETRIC="$IS_BIOMETRIC" \
+            --dart-define=IS_MIC="$IS_MIC" \
+            --dart-define=IS_CONTACT="$IS_CONTACT" \
+            --dart-define=IS_CALENDAR="$IS_CALENDAR" \
+            --dart-define=IS_NOTIFICATION="$IS_NOTIFICATION" \
+            --dart-define=IS_STORAGE="$IS_STORAGE" \
+            --dart-define=APNS_KEY_ID="$APNS_KEY_ID" \
+            --dart-define=APPLE_TEAM_ID="$APPLE_TEAM_ID" \
+            --dart-define=APNS_AUTH_KEY_URL="$APNS_AUTH_KEY_URL"
 
       - name: 🏗 Archive iOS App with Xcode
         script: |
+          set -euo pipefail
+          trap 'echo "❌ Flutter build failed on line $LINENO"; exit 1' ERR
           echo "📥 Loading environment from $CM_ENV"
           set -a
           source "$CM_ENV"
@@ -2421,6 +2343,8 @@ workflows:
             cd ..
       - name: 📦 Export signed IPA
         script: |
+          set -euo pipefail
+          trap 'echo "❌ Flutter build failed on line $LINENO"; exit 1' ERR
           echo "✅ Start Exporting:"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
