@@ -3,10 +3,15 @@
 set -euo pipefail
 trap 'echo "❌ Failed to generate Podfile at line $LINENO"; exit 1' ERR
 
-echo "📥 Loading environment from \$CM_ENV"
-set -a
-source "$CM_ENV"
-set +a
+echo "📥 Parsing environment from $CM_ENV"
+
+while IFS='=' read -r key value; do
+  key=$(echo "$key" | xargs)
+  value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' | xargs)
+  if [[ -n "$key" ]]; then
+    export "$key=$value"
+  fi
+done < "$CM_ENV"
 
 echo "✅ PROFILE_UUID=$PROFILE_UUID"
 echo "✅ PROFILE_NAME=$PROFILE_NAME"
