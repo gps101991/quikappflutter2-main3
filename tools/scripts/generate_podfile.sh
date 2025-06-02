@@ -47,16 +47,14 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 pre_install do |installer|
-  puts "🔧 Injecting manual signing"
-  installer.aggregate_targets.each do |aggregate_target|
-    aggregate_target.user_project.native_targets.each do |native_target|
-      if native_target.name == 'Runner'
-        native_target.build_configurations.each do |config|
-          config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
-          config.build_settings['DEVELOPMENT_TEAM'] = '\${APPLE_TEAM_ID}'
-          config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '\${PROFILE_NAME}'
-        end
-      end
+  puts "🔧 Injecting manual signing ONLY for Runner target"
+  installer.pods_project.targets.each do |target|
+    next unless target.name == 'Runner'
+
+    target.build_configurations.each do |config|
+      config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+      config.build_settings['DEVELOPMENT_TEAM'] = '${APPLE_TEAM_ID}'
+      config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '${PROFILE_NAME}'
     end
   end
 end
