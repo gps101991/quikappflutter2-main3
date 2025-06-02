@@ -750,6 +750,7 @@ definitions:
           else
           echo "🚫 Firebase config skipped (PUSH_NOTIFY is not true)"
           fi
+        
 
 
 #        if [ "$PUSH_NOTIFY" = "true" ]; then
