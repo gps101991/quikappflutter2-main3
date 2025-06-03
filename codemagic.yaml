@@ -2064,6 +2064,10 @@ workflows:
 
 
       - *debug_env
+      - name: Make scripts executable (safe)
+        script: |
+          if [ -d ./scripts ]; then chmod +x ./scripts/*.sh; fi
+          if [ -d ./tools/scripts ]; then chmod +x ./tools/scripts/*.sh; fi
       - *permission_ios
       - *change_proj_name
       - *update_package_names
