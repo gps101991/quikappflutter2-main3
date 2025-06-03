@@ -2366,15 +2366,15 @@ workflows:
               
               echo "🚀 Starting Xcode archive..."
           
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
-            -sdk iphoneos \
-            -configuration Release \
-            archive \
-            -allowProvisioningUpdates
+              xcodebuild -workspace Runner.xcworkspace \
+                -scheme Runner \
+                -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
+                -sdk iphoneos \
+                -configuration Release \
+                archive \
+                -allowProvisioningUpdates
               
-            cd ..
+              cd ..
               
               echo "✅ Archive completed successfully"
       - name: 📦 Export signed IPA
