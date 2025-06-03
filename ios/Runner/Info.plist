@@ -47,23 +47,7 @@
 	<true/>
 
 	 <!-- Permissions -->
-        <key>NSCameraUsageDescription</key>
-        <string>This app uses the camera to scan QR codes or capture images.</string>
 
-        <key>NSMicrophoneUsageDescription</key>
-        <string>This app uses the microphone to record audio or enable voice input.</string>
-
-        <key>NSSpeechRecognitionUsageDescription</key>
-        <string>This app uses speech recognition to convert your voice into text.</string>
-
-        <key>NSLocationWhenInUseUsageDescription</key>
-        <string>This app uses your location to provide relevant services nearby.</string>
-
-        <key>NSPhotoLibraryUsageDescription</key>
-        <string>This app uses your photo library to select or upload media.</string>
-
-        <key>NSUserNotificationUsageDescription</key>
-        <string>This app uses notifications to alert you about updates and messages.</string>
 
 </dict>
 </plist>

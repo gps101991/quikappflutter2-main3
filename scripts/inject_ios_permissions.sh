@@ -7,8 +7,9 @@ echo "✅ Injecting iOS permission usage descriptions..."
 add_usage_description() {
   KEY=$1
   MESSAGE=$2
-  if ! /usr/libexec/PlistBuddy -c "Print :$KEY" "$INFO_PLIST" &> /dev/null; then
-    /usr/libexec/PlistBuddy -c "Add :$KEY string $MESSAGE" "$INFO_PLIST"
+  /usr/libexec/PlistBuddy -c "Print :$KEY" "$INFO_PLIST" &> /dev/null
+  if [[ $? -ne 0 ]]; then
+    /usr/libexec/PlistBuddy -c "Add :$KEY string $MESSAGE" "$INFO_PLIST" && \
     echo "➕ Added $KEY"
   else
     echo "ℹ️ $KEY already exists"
