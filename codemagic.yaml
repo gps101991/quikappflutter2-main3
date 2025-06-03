@@ -2467,7 +2467,6 @@ workflows:
             echo "❌ IPA file was not generated!"
             exit 1
           fi
-
       #          echo "✅ Creating ExportOptions.plist:"
       #            cat > ExportOptions.plist <<EOF
       #            <?xml version="1.0" encoding="UTF-8"?>
