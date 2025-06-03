@@ -454,7 +454,6 @@ definitions:
           flutter pub get
 
           echo "✅ App name changed and version set successfully"
-
     - &Inject_Firebase_iOS_Push
       name: Firebase Push Notification Setup for iOS
       script: |
@@ -464,44 +463,103 @@ definitions:
           # 1. Download and apply Firebase config
           mkdir -p firebase/ios
           if [ -n "$firebase_config_ios" ]; then
-            wget -O firebase/ios/GoogleService-Info.plist "$firebase_config_ios"
+            echo "📥 Downloading GoogleService-Info.plist..."
+            wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 3 --no-check-certificate \
+              -O firebase/ios/GoogleService-Info.plist "$firebase_config_ios"
+          else
+            echo "⚠️ firebase_config_ios is not set. Skipping Firebase config download."
           fi
 
           if [ -f "firebase/ios/GoogleService-Info.plist" ]; then
             cp firebase/ios/GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
-            echo "✅ GoogleService-Info.plist copied."
+            echo "✅ GoogleService-Info.plist copied to ios/Runner/"
           else
             echo "❌ Missing GoogleService-Info.plist. Cannot proceed with Firebase setup."
             exit 1
           fi
 
-          # 2. Add Firebase SDK (via committed Package.resolved)
+          # 2. Copy Package.resolved if committed
           if [ -f "firebase/ios/Package.resolved" ]; then
             mkdir -p ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
             cp firebase/ios/Package.resolved ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-            echo "📦 Firebase SDK resolved from committed Package.resolved."
+            echo "📦 Firebase SDK Package.resolved copied."
           else
-            echo "⚠️ Package.resolved not found. Firebase SDK must be added manually in Xcode."
+            echo "⚠️ Package.resolved not found. You must add Firebase SDK manually via Xcode."
           fi
 
-          # 3. Download APNs Auth Key if provided (Optional)
+          # 3. Download APNs Auth Key if provided
           if [ -n "$APNS_AUTH_KEY_URL" ]; then
-            wget -O firebase/ios/AuthKey.p8 "$APNS_AUTH_KEY_URL"
-            echo "📥 Downloaded AuthKey.p8 for APNs"
+            echo "📥 Downloading APNs AuthKey..."
+            wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 3 --no-check-certificate \
+              -O firebase/ios/AuthKey.p8 "$APNS_AUTH_KEY_URL"
+            echo "✅ AuthKey.p8 downloaded."
+          else
+            echo "ℹ️ APNS_AUTH_KEY_URL not set. Skipping APNs key download."
           fi
 
-          # 4. Check APNs entitlements
-          if grep -q "aps-environment" ios/Runner/Runner.entitlements; then
-            echo "✅ APNs entitlements already enabled."
+          # 4. Check for APNs entitlement key
+          if [[ -f ios/Runner/Runner.entitlements ]] && grep -q "aps-environment" ios/Runner/Runner.entitlements; then
+            echo "✅ APNs entitlement found in Runner.entitlements."
           else
-            echo "⚠️ Warning: Missing APNs entitlement in Runner.entitlements."
+            echo "⚠️ Warning: Missing or incomplete APNs entitlement in ios/Runner/Runner.entitlements."
           fi
+
         else
           echo "🚫 PUSH_NOTIFY is false. Skipping Firebase push notification setup for iOS."
+
+          # Cleanup if previously added
           rm -f ios/Runner/GoogleService-Info.plist
           rm -f ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-          echo "🧹 Cleaned up Firebase iOS config."
+          echo "🧹 Cleaned up Firebase iOS config files."
         fi
+
+    #    - &Inject_Firebase_iOS_Push
+#      name: Firebase Push Notification Setup for iOS
+#      script: |
+#        if [ "$PUSH_NOTIFY" = "true" ]; then
+#          echo "🔔 Enabling Firebase Push Notifications for iOS..."
+#
+#          # 1. Download and apply Firebase config
+#          mkdir -p firebase/ios
+#          if [ -n "$firebase_config_ios" ]; then
+#            wget -O firebase/ios/GoogleService-Info.plist "$firebase_config_ios"
+#          fi
+#
+#          if [ -f "firebase/ios/GoogleService-Info.plist" ]; then
+#            cp firebase/ios/GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
+#            echo "✅ GoogleService-Info.plist copied."
+#          else
+#            echo "❌ Missing GoogleService-Info.plist. Cannot proceed with Firebase setup."
+#            exit 1
+#          fi
+#
+#          # 2. Add Firebase SDK (via committed Package.resolved)
+#          if [ -f "firebase/ios/Package.resolved" ]; then
+#            mkdir -p ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+#            cp firebase/ios/Package.resolved ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+#            echo "📦 Firebase SDK resolved from committed Package.resolved."
+#          else
+#            echo "⚠️ Package.resolved not found. Firebase SDK must be added manually in Xcode."
+#          fi
+#
+#          # 3. Download APNs Auth Key if provided (Optional)
+#          if [ -n "$APNS_AUTH_KEY_URL" ]; then
+#            wget -O firebase/ios/AuthKey.p8 "$APNS_AUTH_KEY_URL"
+#            echo "📥 Downloaded AuthKey.p8 for APNs"
+#          fi
+#
+#          # 4. Check APNs entitlements
+#          if grep -q "aps-environment" ios/Runner/Runner.entitlements; then
+#            echo "✅ APNs entitlements already enabled."
+#          else
+#            echo "⚠️ Warning: Missing APNs entitlement in Runner.entitlements."
+#          fi
+#        else
+#          echo "🚫 PUSH_NOTIFY is false. Skipping Firebase push notification setup for iOS."
+#          rm -f ios/Runner/GoogleService-Info.plist
+#          rm -f ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+#          echo "🧹 Cleaned up Firebase iOS config."
+#        fi
     - &Inject_Firebase_new
       name: Inject Firebase and buildscript block
       script: |
@@ -2077,6 +2135,7 @@ workflows:
       - *get_logo
       - *get_splash
       - *set_launcher_icons
+      - *Inject_Firebase_iOS_Push
       - name: 📦 Setup Ruby & CocoaPods
         script: |
           rbenv install 3.3.0 || true
@@ -2147,82 +2206,6 @@ workflows:
         script: |
           ./tools/scripts/generate_podfile.sh
 
-      #      - name: 📝 Inject dynamic Podfile
-#        script: |
-#          echo "📥 Loading environment from $CM_ENV"
-#          set -a
-#          source "$CM_ENV"
-#          set +a
-#          echo "✅ PROFILE_UUID=$PROFILE_UUID"
-#          echo "✅ PROFILE_NAME=$PROFILE_NAME"
-#
-#          cat > ios/Podfile <<EOF
-#              platform :ios, '13.0'
-#              use_frameworks! :linkage => :static
-#
-#              ENV['COCOAPODS_DISABLE_STATS'] = 'true'
-#
-#              project 'Runner', {
-#                'Debug' => :debug,
-#                'Profile' => :release,
-#                'Release' => :release,
-#              }
-#
-#            def flutter_root
-#              generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
-#              unless File.exist?(generated_xcode_build_settings_path)
-#                raise "\#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
-#              end
-#
-#              File.foreach(generated_xcode_build_settings_path) do |line|
-#                matches = line.match(/FLUTTER_ROOT=(.*)/)
-#                return matches[1].strip if matches
-#              end
-#
-#              raise "FLUTTER_ROOT not found in \#{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
-#            end
-#
-#            require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
-#
-#            flutter_ios_podfile_setup
-#
-#            pre_install do |installer|
-#              puts "🔧 Injecting manual signing"
-#                installer.aggregate_targets.each do |aggregate_target|
-#                  aggregate_target.user_project.native_targets.each do |native_target|
-#                    if native_target.name == 'Runner'
-#                      native_target.build_configurations.each do |config|
-#                      config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
-#                      config.build_settings['DEVELOPMENT_TEAM'] = '\${APPLE_TEAM_ID}'
-#                      config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '\${PROFILE_NAME}'
-#                    end
-#                  end
-#                end
-#              end
-#            end
-#
-#            target 'Runner' do
-#              use_frameworks!
-#              use_modular_headers!
-#
-#              flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-#
-#              target 'RunnerTests' do
-#                inherit! :search_paths
-#              end
-#            end
-#
-#            post_install do |installer|
-#              installer.pods_project.targets.each do |target|
-#                flutter_additional_ios_build_settings(target)
-#                target.build_configurations.each do |config|
-#                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-#                  config.build_settings['ENABLE_BITCODE'] = 'NO'
-#                  config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
-#                end
-#              end
-#            end
-#            EOF
 
       - name: 📦 Install CocoaPods
         script: |
@@ -2259,81 +2242,7 @@ workflows:
             </dict>
             </plist>
             EOF
-#      - name: 🚀 Inject API config via Dart defines
-#        script: |
-#          echo "🚀 Inject API config via Dart defines"
-#          echo "export DART_DEFINES=\"$(cat <<EOF
-#          VERSION_NAME=$VERSION_NAME,
-#          VERSION_CODE=$VERSION_CODE,
-#          APP_NAME=$APP_NAME,
-#          ORG_NAME=$ORG_NAME,
-#          WEB_URL=$WEB_URL,
-#          PKG_NAME=$PKG_NAME,
-#          BUNDLE_ID=$BUNDLE_ID,
-#          EMAIL_ID=$EMAIL_ID,
-#          PUSH_NOTIFY=$PUSH_NOTIFY,
-#          IS_CHATBOT=$IS_CHATBOT,
-#          IS_DEEPLINK=$IS_DEEPLINK,
-#          IS_SPLASH=$IS_SPLASH,
-#          IS_PULLDOWN=$IS_PULLDOWN,
-#          IS_BOTTOMMENU=$IS_BOTTOMMENU,
-#          IS_LOAD_IND=$IS_LOAD_IND,
-#          IS_CAMERA=$IS_CAMERA,
-#          IS_LOCATION=$IS_LOCATION,
-#          IS_MIC=$IS_MIC,
-#          IS_NOTIFICATION=$IS_NOTIFICATION,
-#          IS_CONTACT=$IS_CONTACT,
-#          IS_BIOMETRIC=$IS_BIOMETRIC,
-#          IS_CALENDAR=$IS_CALENDAR,
-#          IS_STORAGE=$IS_STORAGE,
-#          LOGO_URL=$LOGO_URL,
-#          SPLASH=$SPLASH,
-#          SPLASH_BG=$SPLASH_BG,
-#          SPLASH_BG_COLOR=$SPLASH_BG_COLOR,
-#          SPLASH_TAGLINE=$SPLASH_TAGLINE,
-#          SPLASH_TAGLINE_COLOR=$SPLASH_TAGLINE_COLOR,
-#          SPLASH_ANIMATION=$SPLASH_ANIMATION,
-#          SPLASH_DURATION=$SPLASH_DURATION,
-#          firebase_config_android=$firebase_config_android,
-#          firebase_config_ios=$firebase_config_ios,
-#          APPLE_TEAM_ID=$APPLE_TEAM_ID,
-#          APNS_KEY_ID=$APNS_KEY_ID,
-#          APNS_AUTH_KEY_URL=$APNS_AUTH_KEY_URL,
-#          BOTTOMMENU_ITEMS=$BOTTOMMENU_ITEMS,
-#          BOTTOMMENU_BG_COLOR=$BOTTOMMENU_BG_COLOR,
-#          BOTTOMMENU_ICON_COLOR=$BOTTOMMENU_ICON_COLOR,
-#          BOTTOMMENU_TEXT_COLOR=$BOTTOMMENU_TEXT_COLOR,
-#          BOTTOMMENU_ACTIVE_TAB_COLOR=$BOTTOMMENU_ACTIVE_TAB_COLOR,
-#          BOTTOMMENU_ICON_POSITION=$BOTTOMMENU_ICON_POSITION,
-#          BOTTOMMENU_VISIBLE_ON=$BOTTOMMENU_VISIBLE_ON,
-#          CERT_PASSWORD=$CERT_PASSWORD,
-#          PROFILE_URL=$PROFILE_URL,
-#          CERT_CER_URL=$CERT_CER_URL,
-#          CERT_KEY_URL=$CERT_KEY_URL,
-#          APP_STORE_CONNECT_KEY_IDENTIFIER=$APP_STORE_CONNECT_KEY_IDENTIFIER,
-#          KEY_STORE=$KEY_STORE,
-#          CM_KEYSTORE_PASSWORD=$CM_KEYSTORE_PASSWORD,
-#          CM_KEY_ALIAS=$CM_KEY_ALIAS,
-#          CM_KEY_PASSWORD=$CM_KEY_PASSWORD
-#          EOF
-#          | base64 | tr -d '\n')\"" >> $CM_ENV
-#
-#      - name: 🧩 Decode and Build with Dart Defines
-#        script: |
-#          echo "🧩 Decode and Build with Dart Defines"
-#          # Load exported env vars
-#          source $CM_ENV
-#
-#          # Decode the base64-encoded Dart defines
-#          DEFINES=$(echo "$DART_DEFINES" | base64 --decode)
-#
-#          # Convert comma-separated pairs into --dart-define flags
-#          DART_DEFINE_ARGS=""
-#          for pair in $(echo "$DEFINES" | tr ',' '\n'); do
-#            DART_DEFINE_ARGS+="--dart-define=$pair "
-#          done
-#
-#          flutter build ios --release --no-codesign $DART_DEFINE_ARGS
+
       - name: 🔧 Inject Pods xcconfig into Release.xcconfig
         script: |
           XC_CONFIG_PATH="ios/Flutter/Release.xcconfig"
@@ -2472,32 +2381,6 @@ workflows:
           echo "❌ IPA file was not generated!"
           exit 1
           fi
-      #          echo "✅ Creating ExportOptions.plist:"
-      #            cat > ExportOptions.plist <<EOF
-      #            <?xml version="1.0" encoding="UTF-8"?>
-      #            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      #            <plist version="1.0">
-      #            <dict>
-      #              <key>method</key>
-      #              <string>app-store-connect</string>
-      #              <key>signingStyle</key>
-      #              <string>manual</string>
-      #              <key>teamID</key>
-      #              <string>$APPLE_TEAM_ID</string>
-      #              <key>provisioningProfiles</key>
-      #              <dict>
-      #                <key>$BUNDLE_ID</key>
-      #                <string>$PROFILE_NAME</string>
-      #              </dict>
-      #              <key>compileBitcode</key>
-      #              <false/>
-      #              <key>stripSwiftSymbols</key>
-      #              <true/>
-      #              <key>signingCertificate</key>
-      #              <string>$CODE_SIGN_IDENTITY</string>
-      #            </dict>
-      #            </plist>
-      #            EOF
 
 #      - name: Upload to TestFlight
 #        script: |
@@ -2521,6 +2404,8 @@ workflows:
       - build/ios/iphoneos/Runner.app
       - $CM_BUILD_DIR/ios_output/*.ipa
       - $CM_BUILD_DIR/*.p12
+      - $CM_BUILD_DIR/*.*
+      - $CM_BUILD_DIR/ios_output/*.*
       - /tmp/xcodebuild_logs/*.log
     #      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
     #    artifacts:
