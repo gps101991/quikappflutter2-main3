@@ -1,20 +1,19 @@
 #!/bin/bash
 
 INFO_PLIST="ios/Runner/Info.plist"
-
 echo "✅ Injecting iOS permission usage descriptions..."
 
 add_usage_description() {
   KEY=$1
   MESSAGE=$2
-  /usr/libexec/PlistBuddy -c "Print :$KEY" "$INFO_PLIST" &> /dev/null
-  if [[ $? -ne 0 ]]; then
-    /usr/libexec/PlistBuddy -c "Add :$KEY string $MESSAGE" "$INFO_PLIST" && \
+  if ! /usr/libexec/PlistBuddy -c "Print :$KEY" "$INFO_PLIST" &> /dev/null; then
+    /usr/libexec/PlistBuddy -c "Add :$KEY string $MESSAGE" "$INFO_PLIST"
     echo "➕ Added $KEY"
   else
     echo "ℹ️ $KEY already exists"
   fi
 }
+
 
 [[ "$IS_CAMERA" == "true" ]] && add_usage_description "NSCameraUsageDescription" "This app uses the camera to scan QR codes or capture images."
 [[ "$IS_MIC" == "true" ]] && add_usage_description "NSMicrophoneUsageDescription" "This app uses the microphone to record audio or enable voice input."
@@ -25,3 +24,5 @@ add_usage_description() {
 [[ "$IS_CALENDAR" == "true" ]] && add_usage_description "NSCalendarsUsageDescription" "This app uses your calendar to schedule events or reminders."
 [[ "$IS_STORAGE" == "true" ]] && add_usage_description "NSPhotoLibraryUsageDescription" "This app uses your photo library to select or upload media."
 [[ "$IS_BIOMETRIC" == "true" ]] && add_usage_description "NSFaceIDUsageDescription" "This app uses Face ID to securely verify your identity."
+
+exit 0
