@@ -80,6 +80,8 @@ flutter:
       - assets/images/
       - assets/fonts/
       - assets/
+      - firebase/ios/
+      - firebase/
   fonts:
       - family: MaterialSymbolsOutlined
         fonts:

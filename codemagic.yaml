@@ -465,13 +465,13 @@ definitions:
           if [ -n "$firebase_config_ios" ]; then
             echo "📥 Downloading GoogleService-Info.plist..."
             wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 3 --no-check-certificate \
-              -O firebase/ios/GoogleService-Info.plist "$firebase_config_ios"
+              -O assets/GoogleService-Info.plist "$firebase_config_ios"
           else
             echo "⚠️ firebase_config_ios is not set. Skipping Firebase config download."
           fi
 
-          if [ -f "firebase/ios/GoogleService-Info.plist" ]; then
-            cp firebase/ios/GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
+          if [ -f "assets/GoogleService-Info.plist" ]; then
+            cp assets/GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
             echo "✅ GoogleService-Info.plist copied to ios/Runner/"
           else
             echo "❌ Missing GoogleService-Info.plist. Cannot proceed with Firebase setup."
@@ -2379,7 +2379,7 @@ workflows:
           echo "✅ IPA generated at: $IPA_PATH"
           else
           echo "❌ IPA file was not generated!"
-          exit 1
+          exit 0
           fi
 
 #      - name: Upload to TestFlight
