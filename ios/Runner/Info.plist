@@ -48,36 +48,22 @@
 
 	 <!-- Permissions -->
         <key>NSCameraUsageDescription</key>
-        <string>This app requires camera access to take photos and videos.</string>
-
-        <key>NSLocationWhenInUseUsageDescription</key>
-        <string>This app needs your location to provide location-based services.</string>
+        <string>This app uses the camera to scan QR codes or capture images.</string>
 
         <key>NSMicrophoneUsageDescription</key>
-        <string>This app needs microphone access for voice recording and audio features.</string>
+        <string>This app uses the microphone to record audio or enable voice input.</string>
 
-        <key>NSContactsUsageDescription</key>
-        <string>This app requires access to your contacts for communication features.</string>
+        <key>NSSpeechRecognitionUsageDescription</key>
+        <string>This app uses speech recognition to convert your voice into text.</string>
 
-        <key>NSCalendarsUsageDescription</key>
-        <string>This app uses your calendar to sync and manage events.</string>
+        <key>NSLocationWhenInUseUsageDescription</key>
+        <string>This app uses your location to provide relevant services nearby.</string>
 
-        <key>NSFaceIDUsageDescription</key>
-        <string>This app uses Face ID for secure login and authentication.</string>
-
-        <!-- Notifications -->
-        <key>UNUserNotificationCenter</key>
-        <string>This app sends you important notifications and updates.</string>
-
-        <!-- Media Access -->
         <key>NSPhotoLibraryUsageDescription</key>
-        <string>This app requires access to your photo library to save images and videos.</string>
-        <key>NSPhotoLibraryAddUsageDescription</key>
-        <string>This app needs permission to save media to your photo library.</string>
-    	<key>CADisableMinimumFrameDurationOnPhone</key>
-    	<true/>
-    	<key>UIApplicationSupportsIndirectInputEvents</key>
-    	<true/>
+        <string>This app uses your photo library to select or upload media.</string>
+
+        <key>NSUserNotificationUsageDescription</key>
+        <string>This app uses notifications to alert you about updates and messages.</string>
 
 </dict>
 </plist>

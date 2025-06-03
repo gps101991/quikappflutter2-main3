@@ -1,42 +1,26 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Conditionally added -->
 
-    <!-- Internet and Network -->
+    <!-- Required by Flutter + web APIs -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
-    <!-- Storage -->
-    <!-- Recommended for Android 13 and above -->
+    <!-- Optional media & storage access (Android 13+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+
     <!-- Backward compatibility -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 
-    <!-- Location (Fine and Coarse) -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-
-    <!-- Camera -->
+    <!-- Optional: Camera access for QR scan, upload, etc. -->
     <uses-permission android:name="android.permission.CAMERA"/>
 
-    <!-- Microphone -->
+    <!-- Optional: Microphone access for recording or speech-to-text -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
-    <!-- Contacts -->
-    <uses-permission android:name="android.permission.READ_CONTACTS"/>
-
-    <!-- Calendar -->
-    <uses-permission android:name="android.permission.READ_CALENDAR"/>
-    <uses-permission android:name="android.permission.WRITE_CALENDAR"/>
-
-    <!-- Biometric -->
-    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
-    <!-- Optional for older devices -->
-    <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
-
-    <!-- Notifications (required for Android 13+) -->
+    <!-- Optional: Notifications (for Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application

@@ -87,6 +87,62 @@ definitions:
         failure: true
 
   scripts:
+    - &permission_apk
+      name: Inject Android permissions into AndroidManifest.xml
+      script: |
+        TEMPLATE="android/app/src/main/AndroidManifest_template.xml"
+        TARGET="android/app/src/main/AndroidManifest.xml"
+        PERMISSIONS=""
+    
+        echo "✅ Injecting Android permissions..."
+    
+        if [[ "$IS_CAMERA" == "true" ]]; then
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.CAMERA\" />\n"
+        fi
+    
+        if [[ "$IS_MIC" == "true" ]]; then
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.RECORD_AUDIO\" />\n"
+        fi
+    
+        if [[ "$IS_LOCATION" == "true" ]]; then
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" />\n"
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\" />\n"
+        fi
+    
+        if [[ "$IS_CONTACT" == "true" ]]; then
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.READ_CONTACTS\" />\n"
+        fi
+    
+        if [[ "$IS_CALENDAR" == "true" ]]; then
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.READ_CALENDAR\" />\n"
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.WRITE_CALENDAR\" />\n"
+        fi
+    
+        if [[ "$IS_NOTIFICATION" == "true" ]]; then
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\" />\n"
+        fi
+    
+        if [[ "$IS_BIOMETRIC" == "true" ]]; then
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.USE_BIOMETRIC\" />\n"
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.USE_FINGERPRINT\" />\n"
+        fi
+    
+        if [[ "$IS_STORAGE" == "true" ]]; then
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\" />\n"
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\" />\n"
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.READ_MEDIA_IMAGES\" />\n"
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.READ_MEDIA_VIDEO\" />\n"
+        PERMISSIONS+="<uses-permission android:name=\"android.permission.READ_MEDIA_AUDIO\" />\n"
+        fi
+    
+        # Replace placeholder in template
+        sed "s|<!-- PERMISSION_PLACEHOLDER -->|$PERMISSIONS|" "$TEMPLATE" > "$TARGET"
+        echo "✅ Generated AndroidManifest.xml"
+
+    - &permission_ios
+      name: Inject iOS permission strings into Info.plist
+      script: ./scripts/inject_ios_permissions.sh
+
     - &debug_env
       name: Debug Environment Variables
       script: |
@@ -1839,6 +1895,7 @@ workflows:
           done
           echo "✅ Uninstall step completed"
       - *debug_env
+      - *permission_apk
       - *change_proj_name
       - *update_package_names
       - *change_app_name
@@ -2007,6 +2064,7 @@ workflows:
 
 
       - *debug_env
+      - *permission_ios
       - *change_proj_name
       - *update_package_names
       - *change_app_name
@@ -2330,9 +2388,22 @@ workflows:
             --dart-define=IS_CALENDAR="$IS_CALENDAR" \
             --dart-define=IS_NOTIFICATION="$IS_NOTIFICATION" \
             --dart-define=IS_STORAGE="$IS_STORAGE" \
+            --dart-define=IS_CHATBOT="$IS_CHATBOT" \
             --dart-define=APNS_KEY_ID="$APNS_KEY_ID" \
             --dart-define=APPLE_TEAM_ID="$APPLE_TEAM_ID" \
-            --dart-define=APNS_AUTH_KEY_URL="$APNS_AUTH_KEY_URL"
+            --dart-define=APNS_AUTH_KEY_URL="$APNS_AUTH_KEY_URL" \
+            --dart-define=KEY_STORE="$KEY_STORE" \
+            --dart-define=CM_KEYSTORE_PASSWORD="$CM_KEYSTORE_PASSWORD" \
+            --dart-define=CM_KEY_ALIAS="$CM_KEY_ALIAS" \
+            --dart-define=CM_KEY_PASSWORD="$CM_KEY_PASSWORD" \
+            --dart-define=CERT_PASSWORD="$CERT_PASSWORD" \
+            --dart-define=PROFILE_URL="$PROFILE_URL" \
+            --dart-define=CERT_CER_URL="$CERT_CER_URL" \
+            --dart-define=CERT_KEY_URL="$CERT_KEY_URL" \
+            --dart-define=APP_STORE_CONNECT_KEY_IDENTIFIER="$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --dart-define=firebase_config_android="$firebase_config_android" \
+            --dart-define=firebase_config_ios="$firebase_config_ios"
+
       - name: 📝 Inject dynamic Podfile for xcodebuild
         script: |
           ./tools/scripts/generate_podfile_xcodebuild.sh
@@ -2388,10 +2459,10 @@ workflows:
             -exportOptionsPlist ExportOptions.plist
 
           echo "📦 Contents of output directory:"
-          ls -lh "$CM_BUILD_DIR/ios_output"
+          ls -lh "build/ios_output"
 
-          if [[ -f "$CM_BUILD_DIR/ios_output/Runner.ipa" ]]; then
-            echo "✅ IPA generated at: $CM_BUILD_DIR/ios_output/Runner.ipa"
+          if [[ -f "build/ios_output/Runner.ipa" ]]; then
+            echo "✅ IPA generated at: build/ios_output/Runner.ipa"
           else
             echo "❌ IPA file was not generated!"
             exit 1
