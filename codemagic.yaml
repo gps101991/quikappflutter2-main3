@@ -2337,6 +2337,10 @@ workflows:
         script: |
           ./tools/scripts/generate_podfile_xcodebuild.sh
 
+      - name: Clean DerivedData
+        script: |
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+
       - name: 🏗 Archive iOS App with Xcode
         script: |
   
