@@ -80,8 +80,10 @@ post_install do |installer|
       # 🔥 Remove signing settings from all non-Runner targets
       unless target.name == 'Runner'
         config.build_settings.delete('PROVISIONING_PROFILE_SPECIFIER')
-        config.build_settings.delete('CODE_SIGN_STYLE')
-        config.build_settings.delete('DEVELOPMENT_TEAM')
+              config.build_settings.delete('CODE_SIGN_STYLE')
+              config.build_settings.delete('DEVELOPMENT_TEAM')
+              config.build_settings.delete('CODE_SIGN_IDENTITY')
+              config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
       end
     end
   end

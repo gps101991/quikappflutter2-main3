@@ -2365,19 +2365,16 @@ workflows:
               cd ios
               
               echo "🚀 Starting Xcode archive..."
+          
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
+            -sdk iphoneos \
+            -configuration Release \
+            archive \
+            -allowProvisioningUpdates
               
-              xcodebuild -workspace Runner.xcworkspace \
-                -scheme Runner \
-                -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
-                -sdk iphoneos \
-                -configuration Release \
-                archive \
-                DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-                PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-                CODE_SIGN_IDENTITY="Apple Distribution" \
-                PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID"
-              
-              cd ..
+            cd ..
               
               echo "✅ Archive completed successfully"
       - name: 📦 Export signed IPA
